@@ -4,4 +4,5 @@ export const BALANCE = {
   startingMiners: 3,
   inkWellOffset: 65,
   minerSpawnJitter: 18,
+  defenseLineOffset: 140,
 };

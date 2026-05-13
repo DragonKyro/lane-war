@@ -1,3 +1,5 @@
+import { StanceController } from "../commands/StanceController.js";
+
 export class Player {
   constructor({ side, name, color }) {
     this.side = side;
@@ -10,6 +12,7 @@ export class Player {
     this.ink = 0;
     this.controlled = null;
     this.activeLane = 1;
+    this.stanceController = new StanceController();
   }
 
   setControlled(entity) {

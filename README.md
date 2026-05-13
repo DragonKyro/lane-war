@@ -18,16 +18,33 @@ npx http-server -p 8000
 
 Then open <http://localhost:8000>. VS Code's "Live Server" extension also works (right-click `index.html` → *Open with Live Server*).
 
-## Current state — Phase 2: Economy & Control
+## Current state — Phase 3: Stances & Combat
 
-- Three lanes, two statues, **Ink Wells** behind each base, and **3 starting scribes (miners)** per side.
-- Scribes cycle on their own: walk to the Ink Well → mine → walk back to the seal → deposit. Watch the **HUD ink counter** tick up.
-- **Click one of your scribes** to *control* it — a gold ring appears around it, mine rate doubles, walk speed +50%. Click empty space (or another scribe) to release / switch.
-- **Unit Bar (bottom-left)**: buy more scribes or Brush Swordsmen with ink. Combat units spawn into the lane chosen by the **Lane Selector**.
-- **Right side play area**: clicking spawns a free Vermillion swordsman in the closest lane (placeholder for the future AI in Phase 5).
-- First statue to 0 HP loses.
+- **Five unit types** form the army roster (see [The roster](#the-roster) below).
+- **Unit-vs-unit combat** on the same lane. Melee swing point-blank, ranged shoot a quick beam, splash explodes in a radius.
+- **Stances per lane** — set via the StancePanel:
+  - **Attack** — push forward, engage anything in range.
+  - **Defend** — fall back to the dashed defense line and only engage if attacked.
+  - **Retreat** — return to your seal and stop attacking.
+  - **Rush** — ignore all enemies and beeline for the opposing seal. The tower-push button.
+- **All-lanes shortcut buttons** apply one stance to all three lanes at once (the classic Stick War style command).
+- **Side tinting**: Black Ink units have ink-black outlines; Vermillion units have red outlines. The body color identifies the unit type.
+- Economy (scribes + ink + the click-to-control boost) from Phase 2 still works.
+- Right-side click still free-spawns a Vermillion swordsman in the nearest lane — placeholder for the Phase 5 AI.
 
-Things deliberately deferred: unit-vs-unit combat (units pass through each other and only attack statues — that's Phase 3), stances, defenses, powers, AI.
+## The roster
+
+| Unit | Role | Cost | HP | DMG | Range | Speed |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| **Brush Swordsman** | Melee | 25 | 80 | 12 | 28 | 70 |
+| **Quill Archer** | Range | 35 | 45 | 9 | 180 | 60 |
+| **Folded Sentinel** | Tank | 60 | 260 | 14 | 32 | 38 |
+| **Ink Mortar** | Splash (55) | 80 | 55 | 18 | 210 | 38 |
+| **Paper Dragon** | Juggernaut | 200 | 650 | 38 | 42 | 44 |
+
+(Numbers are first-pass — expect to tune them during Phase 6 balance.)
+
+Things deliberately deferred: defense buildings + powers (Phase 4), AI opponent (Phase 5), menu / hotseat / polish (Phase 6).
 
 ## Roadmap
 
@@ -43,15 +60,15 @@ Phaser bootstrap, three lanes, two statues, click-to-spawn a single placeholder 
 - **UnitBar UI** at the bottom: buttons for each unit type with ink cost; click to queue a spawn.
 - **LaneSelector**: pick which lane the next spawned unit enters.
 
-### Phase 3 — Stances & Combat
-- **Unit-vs-unit combat**: target acquisition picks the nearest enemy on the same lane before falling back to the statue. Existing `Unit.update` is the hook.
-- **More unit types**: at least three — Brush Swordsman (cheap melee), Quill Archer (ranged), Paper Giant (expensive tank). Stats live in `units.config.js`.
+### Phase 3 — Stances & Combat ✅
+- **Unit-vs-unit combat**: target acquisition picks the nearest enemy on the same lane before falling back to the statue.
+- **Five unit types**: Brush Swordsman (melee), Quill Archer (range), Folded Sentinel (tank), Ink Mortar (splash), Paper Dragon (juggernaut).
 - **StanceController** with four states per lane, per player:
   - `ATTACK` — push forward, engage anything in range
   - `DEFEND` — fall back to a line in front of the statue, engage if approached
   - `RETREAT` — return to the statue and stop
   - `RUSH` — ignore enemies and beeline for the opposing statue (the tower-rush option)
-- **StancePanel UI**: per-lane buttons plus global "All-X" shortcuts (Stick War style hotkeys).
+- **StancePanel UI**: per-lane row plus an All-lanes row for the Stick-War-style commands.
 
 ### Phase 4 — Defenses & Powers
 - **SealStamp walls**: blocking buildings placed in a fixed slot in front of each lane on your side; slow enemy advance.
@@ -96,11 +113,12 @@ src/core/        Pure logic: World, Lane, Player
 src/entities/    Entity base, Building base, Unit, Statue, Miner
 src/units/       Unit + miner data tables
 src/buildings/   InkWell (SealStamp, InkTurret — future)
-src/ui/          HUD, UnitBar, LaneSelector (StancePanel — future)
+src/commands/    StanceController + STANCE enum
+src/ui/          HUD, UnitBar, LaneSelector, StancePanel
 src/config/      Constants, balance numbers
 ```
 
-Future folders (per the design plan): `src/commands/`, `src/powers/`, `src/economy/`, `src/ai/`.
+Future folders (per the design plan): `src/powers/`, `src/economy/`, `src/ai/`.
 
 ## Tech
 

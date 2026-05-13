@@ -51,8 +51,8 @@ src/core/        Pure logic: World, Lane, Player
 src/entities/    Entity base, Building base, Unit, Statue, Miner
 src/units/       units.config.js, miners.config.js
 src/buildings/   InkWell, buildings.config.js  (SealStamp, InkTurret — future)
-src/ui/          HUD, UnitBar, LaneSelector  (StancePanel — future)
-src/commands/    (future) StanceController
+src/commands/    StanceController + STANCE enum + STANCE_ORDER + STANCE_LABEL
+src/ui/          HUD, UnitBar, LaneSelector, StancePanel
 src/powers/      (future) Power base + concrete powers
 src/ai/          (future) EnemyAI
 src/config/      constants.js, balance.js
@@ -62,13 +62,17 @@ Folders marked `(future)` are listed in the plan but not yet created.
 
 ## Current state
 
-Phase 2 ("Economy & Control") is done. On top of Phase 1:
-- Each player has an `InkWell` building and 3 starting `Miner` entities that auto-cycle (walk-mine-deposit) and add ink to their `Player`.
-- Controlled-entity mechanic on `Player` (`controlled`, `setControlled`, `clearControlled`). While controlled, `Miner.effective*` getters apply multipliers from `miners.config.js`. Visualised by a pulsing gold ring drawn each frame by `BattleScene.drawControlIndicator`.
-- UI: `HUD` (top bar with names, seal HP, ink), `UnitBar` (buy buttons — costs deducted directly from `player.ink`), `LaneSelector` (sets `player.activeLane`).
-- Left-side click in the play area = control / deselect. Right-side click = free Vermillion spawn (placeholder for Phase 5 AI).
+Phase 3 ("Stances & Combat") is done. On top of Phases 1 & 2:
+- **Five unit types** in [src/units/units.config.js](src/units/units.config.js): `brushSwordsman` (melee), `quillArcher` (range), `foldedSentinel` (tank), `inkMortar` (splash, `splashRadius` field), `paperDragon` (juggernaut). Each has a `role` and `shortName`. `UNIT_LIST` is the canonical order for the UnitBar.
+- **Unit-vs-unit combat** in `Unit.update`. `findEnemy` filters by same lane + roughly-in-front (`forward < -2*radius` guard) and picks nearest. Falls back to enemy statue when no unit target.
+- **Splash damage** in `Unit.attack`: when `splashRadius > 0`, the unit damages all enemies (and the statue) within `splashRadius` of the *target's* position. Attacker is never friendly-fired.
+- **Attack FX** in `Unit.showAttackFx`: ranged units (range > 60) draw a fading line via Graphics; melee units pop a gold flash circle; splash units add a tinted ring. All use `scene.tweens` with `onComplete: destroy`. Side-tinted via `outlineColor`.
+- **Stances** (`src/commands/StanceController.js`): per-lane `STANCE.ATTACK | DEFEND | RETREAT | RUSH`. Each `Player` owns a `StanceController`. The Unit's update branches on the stance read fresh each tick — no stance state on the unit itself.
+- **StancePanel** (`src/ui/StancePanel.js`): two rows — one for `activeLane` (live-bound to `LaneSelector`), one for "all lanes". Highlights the active stance in vermillion.
+- **Defense line** rendered as a dashed marker per lane at `STATUE_X.{side} ± BALANCE.defenseLineOffset`. `Unit.defenseLineX` is the canonical position for DEFEND stance and (Phase 4) for buildings.
+- **Side tinting** of units via `Unit.outlineColor` (ink for LEFT, vermillion for RIGHT) — body color stays type-defined.
 
-Still deferred: unit-vs-unit combat (units pass through each other and only attack statues), stances, defense buildings, powers, AI, menu.
+Still deferred: defense buildings + powers (Phase 4), AI opponent (Phase 5), menu / hotseat / polish (Phase 6).
 
 ## Gotchas
 
@@ -80,7 +84,11 @@ Still deferred: unit-vs-unit combat (units pass through each other and only atta
 - **Win condition emits `gameOver` on the scene's event emitter** — see `World.update` and `BattleScene.create`. Use that pattern for cross-system signals (don't add direct refs between AI / UI / world).
 - **Entity cleanup happens in `World.update` after the tick.** Dead entities have `destroy()` called once, then are filtered out of `lane.units`, `player.units`, `player.miners`. `Entity.destroy` (and overrides in `Statue`, `Miner`) is idempotent / null-safe.
 - **Controlled state is on `Player`.** `player.controlled` points to the live entity. World clears it automatically if the controlled entity dies. UI / mechanic getters live on the entity (`Miner.isControlled`, `Miner.effective*`).
-- **UI panel layering:** the dark bottom panel is drawn *before* the UnitBar / LaneSelector so the buttons render on top. If you add more UI, keep that order in `BattleScene.create`.
+- **UI panel layering:** the dark bottom panel is drawn *before* the UnitBar / LaneSelector / StancePanel so the buttons render on top. If you add more UI, keep that order in `BattleScene.create`.
+- **Stance is read fresh from the controller each tick** — don't cache it on the Unit. The UI flips a single source of truth (`player.stanceController.stances[]`) and Units adapt next frame.
+- **Splash damage:** `splashRadius` lives on the *unit type*, not the projectile (there is no projectile entity yet — Phase 3 uses instant hits + FX tweens). When the unit attacks, the AoE is centered on the *target's* position, not the attacker. Statue is included in the splash if within radius.
+- **Side-based outlines** are computed in a getter (`Unit.outlineColor`), not stored in the unit-type config — keeps data tables decoupled from team identity.
+- **`findEnemy` rejects enemies far behind** (`forward < -2*radius`). This stops melee units from backtracking when a Rush-stance enemy slipped past them — instead they keep marching to the enemy seal. If you ever want true two-direction engagement, remove that guard.
 
 ## Deployment
 

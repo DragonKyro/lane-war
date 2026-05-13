@@ -7,6 +7,7 @@ import { InkWell } from "../buildings/InkWell.js";
 import { HUD } from "../ui/HUD.js";
 import { UnitBar } from "../ui/UnitBar.js";
 import { LaneSelector } from "../ui/LaneSelector.js";
+import { StancePanel } from "../ui/StancePanel.js";
 import {
   WORLD_W,
   WORLD_H,
@@ -18,7 +19,7 @@ import {
   PALETTE,
 } from "../config/constants.js";
 import { BALANCE } from "../config/balance.js";
-import { UNIT_TYPES } from "../units/units.config.js";
+import { UNIT_TYPES, UNIT_LIST } from "../units/units.config.js";
 import { MINER_TYPE } from "../units/miners.config.js";
 
 export class BattleScene extends Phaser.Scene {
@@ -44,24 +45,25 @@ export class BattleScene extends Phaser.Scene {
     left.inkWell = new InkWell({ scene: this, owner: left, x: STATUE_X.left - BALANCE.inkWellOffset, y: midY });
     right.inkWell = new InkWell({ scene: this, owner: right, x: STATUE_X.right + BALANCE.inkWellOffset, y: midY });
 
+    this.drawDefenseLines();
+
     this.spawnStartingMiners(left);
     this.spawnStartingMiners(right);
 
     this.drawBottomPanel();
 
     this.hud = new HUD(this, this.world);
-    this.unitBar = new UnitBar(
-      this,
-      left,
-      20,
-      WORLD_H - 90,
-      [
-        { ...MINER_TYPE, kind: "miner" },
-        { ...UNIT_TYPES.brushSwordsman, kind: "unit" },
-      ],
-      (item) => this.handleBuy(left, item)
+
+    const unitItems = [
+      { ...MINER_TYPE, kind: "miner", role: "economy" },
+      ...UNIT_LIST.map((u) => ({ ...u, kind: "unit" })),
+    ];
+    this.unitBar = new UnitBar(this, left, 10, WORLD_H - 90, unitItems, (item) =>
+      this.handleBuy(left, item)
     );
-    this.laneSelector = new LaneSelector(this, left, 260, WORLD_H - 85);
+
+    this.laneSelector = new LaneSelector(this, left, 500, WORLD_H - 85);
+    this.stancePanel = new StancePanel(this, left, 710, WORLD_H - 96);
 
     this.controlIndicators = {
       [SIDE.LEFT]: this.add.graphics(),
@@ -101,15 +103,29 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
+  drawDefenseLines() {
+    const g = this.add.graphics();
+    g.lineStyle(1, PALETTE.parchmentDark, 0.5);
+    const leftX = STATUE_X.left + BALANCE.defenseLineOffset;
+    const rightX = STATUE_X.right - BALANCE.defenseLineOffset;
+    for (let i = 0; i < LANE_YS.length; i++) {
+      const y = LANE_YS[i];
+      for (let dx = -8; dx <= 8; dx += 4) {
+        g.lineBetween(leftX, y + dx, leftX + 4, y + dx);
+        g.lineBetween(rightX, y + dx, rightX - 4, y + dx);
+      }
+    }
+  }
+
   drawBottomPanel() {
-    this.add.rectangle(0, WORLD_H - 100, WORLD_W, 100, PALETTE.ink, 0.6).setOrigin(0, 0);
+    this.add.rectangle(0, WORLD_H - 100, WORLD_W, 100, PALETTE.ink, 0.65).setOrigin(0, 0);
   }
 
   drawHintText() {
     const hint =
-      "Click a scribe on YOUR side to control it (faster + more ink). Click empty space to release. Click the RIGHT play area to spawn a free Vermillion swordsman for testing.";
+      "Click your scribes/units to control them. Click empty space to release. Right-side clicks free-spawn a Vermillion swordsman in the closest lane.";
     this.add
-      .text(WORLD_W / 2, WORLD_H - 6, hint, {
+      .text(WORLD_W / 2, WORLD_H - 4, hint, {
         fontFamily: "Georgia, serif",
         fontSize: "11px",
         color: "#9c8c6a",
@@ -246,6 +262,7 @@ export class BattleScene extends Phaser.Scene {
     this.world.update(dt);
     this.hud.update();
     this.unitBar.update();
+    this.stancePanel.update();
     for (const player of Object.values(this.world.players)) {
       this.drawControlIndicator(player);
     }

@@ -13,47 +13,47 @@ export class UnitBar {
   }
 
   draw(x, y) {
-    const btnW = 110;
-    const btnH = 70;
-    const gap = 10;
+    const btnW = 76;
+    const btnH = 76;
+    const gap = 4;
 
     this.items.forEach((item, i) => {
       const bx = x + i * (btnW + gap);
       const bg = this.scene.add
-        .rectangle(bx, y, btnW, btnH, PALETTE.parchment, 0.9)
+        .rectangle(bx, y, btnW, btnH, PALETTE.parchment, 0.92)
         .setOrigin(0, 0)
         .setStrokeStyle(2, PALETTE.ink, 1)
         .setInteractive({ useHandCursor: true });
 
       const name = this.scene.add
-        .text(bx + btnW / 2, y + 10, item.displayName, {
+        .text(bx + btnW / 2, y + 8, item.shortName || item.displayName, {
           fontFamily: FONT,
-          fontSize: "14px",
+          fontSize: "13px",
           color: "#1a1410",
         })
         .setOrigin(0.5, 0);
 
-      const cost = this.scene.add
-        .text(bx + btnW / 2, y + btnH - 22, `${item.cost} ink`, {
+      const role = this.scene.add
+        .text(bx + btnW / 2, y + 28, item.role || (item.kind === "miner" ? "economy" : ""), {
           fontFamily: FONT,
-          fontSize: "13px",
-          color: "#7a1f18",
+          fontSize: "10px",
+          color: "#9c8c6a",
         })
         .setOrigin(0.5, 0);
 
-      const hint = this.scene.add
-        .text(bx + btnW / 2, y + 32, item.kind === "miner" ? "(economy)" : "(combat)", {
+      const cost = this.scene.add
+        .text(bx + btnW / 2, y + btnH - 18, `${item.cost} ink`, {
           fontFamily: FONT,
-          fontSize: "11px",
-          color: "#9c8c6a",
+          fontSize: "12px",
+          color: "#7a1f18",
         })
         .setOrigin(0.5, 0);
 
       bg.on("pointerdown", () => this.tryBuy(item));
       bg.on("pointerover", () => bg.setFillStyle(PALETTE.gold, 0.9));
-      bg.on("pointerout", () => bg.setFillStyle(PALETTE.parchment, 0.9));
+      bg.on("pointerout", () => bg.setFillStyle(PALETTE.parchment, 0.92));
 
-      this.buttons.push({ item, bg, name, cost, hint });
+      this.buttons.push({ item, bg, name, role, cost });
     });
   }
 
@@ -66,7 +66,7 @@ export class UnitBar {
   update() {
     for (const b of this.buttons) {
       const affordable = this.player.ink >= b.item.cost;
-      b.bg.setAlpha(affordable ? 1 : 0.5);
+      b.bg.setAlpha(affordable ? 1 : 0.45);
     }
   }
 }
