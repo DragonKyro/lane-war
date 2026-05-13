@@ -46,16 +46,15 @@ Defined in [src/config/constants.js](src/config/constants.js):
 
 ```
 index.html, style.css, src/main.js
-src/scenes/      Phaser scenes (BootScene → BattleScene → GameOverScene)
+src/scenes/      BootScene, BattleScene  (GameOverScene — future)
 src/core/        Pure logic: World, Lane, Player
-src/entities/    Entity base, Unit, Statue, (Miner, Building — future)
-src/units/       Concrete unit data + classes
-src/buildings/   (future) Defense buildings + InkWell
+src/entities/    Entity base, Building base, Unit, Statue, Miner
+src/units/       units.config.js, miners.config.js
+src/buildings/   InkWell, buildings.config.js  (SealStamp, InkTurret — future)
+src/ui/          HUD, UnitBar, LaneSelector  (StancePanel — future)
 src/commands/    (future) StanceController
 src/powers/      (future) Power base + concrete powers
-src/economy/     (future) Economy
 src/ai/          (future) EnemyAI
-src/ui/          (future) HUD, UnitBar, StancePanel, LaneSelector
 src/config/      constants.js, balance.js
 ```
 
@@ -63,14 +62,25 @@ Folders marked `(future)` are listed in the plan but not yet created.
 
 ## Current state
 
-Phase 1 ("Hello, Battlefield") is done: lanes, statues, click-to-spawn a placeholder unit that walks across and damages the enemy statue. No economy, no stances, no AI yet — those come in Phases 2–5.
+Phase 2 ("Economy & Control") is done. On top of Phase 1:
+- Each player has an `InkWell` building and 3 starting `Miner` entities that auto-cycle (walk-mine-deposit) and add ink to their `Player`.
+- Controlled-entity mechanic on `Player` (`controlled`, `setControlled`, `clearControlled`). While controlled, `Miner.effective*` getters apply multipliers from `miners.config.js`. Visualised by a pulsing gold ring drawn each frame by `BattleScene.drawControlIndicator`.
+- UI: `HUD` (top bar with names, seal HP, ink), `UnitBar` (buy buttons — costs deducted directly from `player.ink`), `LaneSelector` (sets `player.activeLane`).
+- Left-side click in the play area = control / deselect. Right-side click = free Vermillion spawn (placeholder for Phase 5 AI).
+
+Still deferred: unit-vs-unit combat (units pass through each other and only attack statues), stances, defense buildings, powers, AI, menu.
 
 ## Gotchas
 
-- **`scene.update(time, dt)` second arg is delta in ms** — `Unit.update` and `World.update` already expect ms. Don't mix s and ms when adding new tick logic.
-- **Phaser graphics are screen-space.** When moving a `Graphics` object, set its `x`/`y` properties (we do that in `Unit.draw`/`update`). Don't redraw every frame; that leaks.
-- **Both sides spawn via click in Phase 1.** The right-side click is a stand-in for the future AI — when AI lands, remove the right-side click handler in `BattleScene.bindInput`.
+- **`scene.update(time, dt)` second arg is delta in ms** — `Unit.update`, `Miner.update`, and `World.update` all expect ms. Don't mix s and ms when adding new tick logic.
+- **Phaser graphics are screen-space.** For moving entities (`Unit`, `Miner`) we draw in local coords once in `draw()` then translate via `gfx.x` / `gfx.y` each frame. Don't `g.clear()` + redraw every frame; that leaks. Pattern for the controlled-unit indicator is the exception — `BattleScene.drawControlIndicator` does `g.clear()` per frame on a single per-player Graphics it owns, which is fine because there's only one.
+- **Statues use absolute coords directly in `draw()`** because they don't move — different convention from Unit/Miner. Don't mix.
+- **Right-side click is the AI stand-in.** It free-spawns a Vermillion swordsman. Remove from `BattleScene.bindInput` when the AI ships (Phase 5).
+- **Click-to-control:** `BattleScene.pickEntityAt` is what decides if a play-area click hit something. Range is `entity.radius + 4` — slightly forgiving. Right-side entities are unselectable (control is left-player only for now).
 - **Win condition emits `gameOver` on the scene's event emitter** — see `World.update` and `BattleScene.create`. Use that pattern for cross-system signals (don't add direct refs between AI / UI / world).
+- **Entity cleanup happens in `World.update` after the tick.** Dead entities have `destroy()` called once, then are filtered out of `lane.units`, `player.units`, `player.miners`. `Entity.destroy` (and overrides in `Statue`, `Miner`) is idempotent / null-safe.
+- **Controlled state is on `Player`.** `player.controlled` points to the live entity. World clears it automatically if the controlled entity dies. UI / mechanic getters live on the entity (`Miner.isControlled`, `Miner.effective*`).
+- **UI panel layering:** the dark bottom panel is drawn *before* the UnitBar / LaneSelector so the buttons render on top. If you add more UI, keep that order in `BattleScene.create`.
 
 ## Deployment
 

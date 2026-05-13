@@ -19,6 +19,10 @@ export class World {
     this.lanes[unit.lane].add(unit);
   }
 
+  spawnMiner(miner) {
+    miner.owner.miners.push(miner);
+  }
+
   update(dt) {
     if (this.gameOver) return;
 
@@ -26,11 +30,26 @@ export class World {
       for (const unit of lane.units) {
         unit.update(dt, this);
       }
-      lane.removeDead();
+    }
+    for (const player of Object.values(this.players)) {
+      for (const miner of player.miners) {
+        miner.update(dt, this);
+      }
     }
 
+    for (const lane of this.lanes) {
+      for (const u of lane.units) if (u.dead) u.destroy();
+      lane.removeDead();
+    }
     for (const player of Object.values(this.players)) {
+      for (const m of player.miners) if (m.dead) m.destroy();
+      player.miners = player.miners.filter((m) => !m.dead);
       player.units = player.units.filter((u) => !u.dead);
+
+      if (player.controlled && player.controlled.dead) {
+        player.clearControlled();
+      }
+
       if (player.statue) player.statue.update(dt);
       if (player.statue && player.statue.dead) {
         this.gameOver = true;

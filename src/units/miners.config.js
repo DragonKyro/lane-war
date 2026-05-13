@@ -1,0 +1,15 @@
+export const MINER_TYPE = {
+  key: "minerScribe",
+  displayName: "Scribe",
+  cost: 20,
+  hp: 30,
+  speed: 60,
+  mineTime: 2500,
+  yieldPerCycle: 5,
+  radius: 10,
+  color: 0xc69c4a,
+  outline: 0x1a1410,
+  controlSpeedMul: 1.5,
+  controlMineTimeMul: 0.5,
+  controlYieldMul: 2,
+};

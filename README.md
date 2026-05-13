@@ -18,13 +18,16 @@ npx http-server -p 8000
 
 Then open <http://localhost:8000>. VS Code's "Live Server" extension also works (right-click `index.html` → *Open with Live Server*).
 
-## Current state — Phase 1: "Hello, Battlefield"
+## Current state — Phase 2: Economy & Control
 
-- Three lanes, two statues facing off across a parchment battlefield.
-- Click anywhere on the **left half** of the play area to spawn a Black Ink swordsman in the closest lane.
-- Click the **right half** to spawn one for Vermillion (placeholder for the future AI).
-- Units walk forward and attack the enemy statue when in range.
+- Three lanes, two statues, **Ink Wells** behind each base, and **3 starting scribes (miners)** per side.
+- Scribes cycle on their own: walk to the Ink Well → mine → walk back to the seal → deposit. Watch the **HUD ink counter** tick up.
+- **Click one of your scribes** to *control* it — a gold ring appears around it, mine rate doubles, walk speed +50%. Click empty space (or another scribe) to release / switch.
+- **Unit Bar (bottom-left)**: buy more scribes or Brush Swordsmen with ink. Combat units spawn into the lane chosen by the **Lane Selector**.
+- **Right side play area**: clicking spawns a free Vermillion swordsman in the closest lane (placeholder for the future AI in Phase 5).
 - First statue to 0 HP loses.
+
+Things deliberately deferred: unit-vs-unit combat (units pass through each other and only attack statues — that's Phase 3), stances, defenses, powers, AI.
 
 ## Roadmap
 
@@ -33,7 +36,7 @@ The game ships in seven phases. Each phase is playtestable on its own before mov
 ### Phase 1 — Hello, Battlefield ✅
 Phaser bootstrap, three lanes, two statues, click-to-spawn a single placeholder unit that walks to the enemy statue and damages it. Win condition fires when a statue reaches 0 HP. Establishes the OOP foundation (`Entity` / `Unit` / `Statue` / `World` / `Lane` / `Player`).
 
-### Phase 2 — Economy & Control
+### Phase 2 — Economy & Control ✅
 - **Ink** as the core resource for both players, displayed in the HUD.
 - **InkWell** building at each base; **Miner** units cycle (walk to well → mine → walk back → deposit → repeat).
 - **Controlled-unit mechanic**: click a miner (or, later, any unit) to "control" it — boosts its mine rate / move speed / damage while controlled. Only one entity controlled per player at a time. Stick War's signature feel.
@@ -88,14 +91,16 @@ Out of scope for v1; deferred until single-player feels good. Likely WebRTC P2P 
 
 ```
 index.html, style.css, src/main.js
-src/scenes/      Phaser scenes (Boot, Battle, GameOver)
+src/scenes/      Phaser scenes (Boot, Battle; GameOver — future)
 src/core/        Pure logic: World, Lane, Player
-src/entities/    Entity base class, Unit, Statue (Miner, Building — future)
-src/units/       Concrete unit data + classes
+src/entities/    Entity base, Building base, Unit, Statue, Miner
+src/units/       Unit + miner data tables
+src/buildings/   InkWell (SealStamp, InkTurret — future)
+src/ui/          HUD, UnitBar, LaneSelector (StancePanel — future)
 src/config/      Constants, balance numbers
 ```
 
-Future folders (per the design plan): `src/buildings/`, `src/commands/`, `src/powers/`, `src/economy/`, `src/ai/`, `src/ui/`.
+Future folders (per the design plan): `src/commands/`, `src/powers/`, `src/economy/`, `src/ai/`.
 
 ## Tech
 

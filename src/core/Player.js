@@ -4,11 +4,20 @@ export class Player {
     this.name = name;
     this.color = color;
     this.statue = null;
+    this.inkWell = null;
     this.units = [];
+    this.miners = [];
     this.ink = 0;
+    this.controlled = null;
+    this.activeLane = 1;
   }
 
-  ownsStatue(statue) {
-    return this.statue === statue;
+  setControlled(entity) {
+    if (entity && entity.owner !== this) return;
+    this.controlled = entity;
+  }
+
+  clearControlled() {
+    this.controlled = null;
   }
 }

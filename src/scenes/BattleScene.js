@@ -2,6 +2,11 @@ import { World } from "../core/World.js";
 import { Player } from "../core/Player.js";
 import { Statue } from "../entities/Statue.js";
 import { Unit } from "../entities/Unit.js";
+import { Miner } from "../entities/Miner.js";
+import { InkWell } from "../buildings/InkWell.js";
+import { HUD } from "../ui/HUD.js";
+import { UnitBar } from "../ui/UnitBar.js";
+import { LaneSelector } from "../ui/LaneSelector.js";
 import {
   WORLD_W,
   WORLD_H,
@@ -14,6 +19,7 @@ import {
 } from "../config/constants.js";
 import { BALANCE } from "../config/balance.js";
 import { UNIT_TYPES } from "../units/units.config.js";
+import { MINER_TYPE } from "../units/miners.config.js";
 
 export class BattleScene extends Phaser.Scene {
   constructor() {
@@ -31,35 +37,47 @@ export class BattleScene extends Phaser.Scene {
 
     this.world = new World(this, { left, right });
 
-    left.statue = new Statue({
-      scene: this,
-      owner: left,
-      x: STATUE_X.left,
-      y: (PLAY_TOP + PLAY_BOTTOM) / 2,
-      hp: BALANCE.statueHp,
-    });
-    right.statue = new Statue({
-      scene: this,
-      owner: right,
-      x: STATUE_X.right,
-      y: (PLAY_TOP + PLAY_BOTTOM) / 2,
-      hp: BALANCE.statueHp,
-    });
+    const midY = (PLAY_TOP + PLAY_BOTTOM) / 2;
+    left.statue = new Statue({ scene: this, owner: left, x: STATUE_X.left, y: midY, hp: BALANCE.statueHp });
+    right.statue = new Statue({ scene: this, owner: right, x: STATUE_X.right, y: midY, hp: BALANCE.statueHp });
 
-    this.drawHud();
-    this.drawHints();
+    left.inkWell = new InkWell({ scene: this, owner: left, x: STATUE_X.left - BALANCE.inkWellOffset, y: midY });
+    right.inkWell = new InkWell({ scene: this, owner: right, x: STATUE_X.right + BALANCE.inkWellOffset, y: midY });
+
+    this.spawnStartingMiners(left);
+    this.spawnStartingMiners(right);
+
+    this.drawBottomPanel();
+
+    this.hud = new HUD(this, this.world);
+    this.unitBar = new UnitBar(
+      this,
+      left,
+      20,
+      WORLD_H - 90,
+      [
+        { ...MINER_TYPE, kind: "miner" },
+        { ...UNIT_TYPES.brushSwordsman, kind: "unit" },
+      ],
+      (item) => this.handleBuy(left, item)
+    );
+    this.laneSelector = new LaneSelector(this, left, 260, WORLD_H - 85);
+
+    this.controlIndicators = {
+      [SIDE.LEFT]: this.add.graphics(),
+      [SIDE.RIGHT]: this.add.graphics(),
+    };
+
+    this.drawHintText();
     this.bindInput();
 
-    this.events.on("gameOver", (winner) => {
-      this.showGameOver(winner);
-    });
+    this.events.on("gameOver", (winner) => this.showGameOver(winner));
   }
 
   drawBackground() {
     const g = this.add.graphics();
     g.fillStyle(PALETTE.parchment, 1);
     g.fillRect(0, 0, WORLD_W, WORLD_H);
-
     g.fillStyle(PALETTE.parchmentDark, 0.15);
     for (let i = 0; i < 60; i++) {
       const x = Math.random() * WORLD_W;
@@ -83,40 +101,99 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  drawHud() {
-    this.add.rectangle(0, 0, WORLD_W, 80, PALETTE.ink, 0.85).setOrigin(0, 0);
-    this.add
-      .text(WORLD_W / 2, 40, "Lane War — Ink & Origami (Phase 1)", {
-        fontFamily: "Georgia, serif",
-        fontSize: "22px",
-        color: "#ece6d6",
-      })
-      .setOrigin(0.5);
+  drawBottomPanel() {
+    this.add.rectangle(0, WORLD_H - 100, WORLD_W, 100, PALETTE.ink, 0.6).setOrigin(0, 0);
   }
 
-  drawHints() {
+  drawHintText() {
     const hint =
-      "Click LEFT side to spawn for Black Ink • Click RIGHT side to spawn for Vermillion • Y picks the lane closest to your click";
+      "Click a scribe on YOUR side to control it (faster + more ink). Click empty space to release. Click the RIGHT play area to spawn a free Vermillion swordsman for testing.";
     this.add
-      .text(WORLD_W / 2, WORLD_H - 50, hint, {
+      .text(WORLD_W / 2, WORLD_H - 6, hint, {
         fontFamily: "Georgia, serif",
-        fontSize: "14px",
-        color: "#ece6d6",
+        fontSize: "11px",
+        color: "#9c8c6a",
+        wordWrap: { width: WORLD_W - 40 },
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5, 1);
+  }
+
+  spawnStartingMiners(player) {
+    const baseX = player.side === SIDE.LEFT
+      ? player.statue.x - 30
+      : player.statue.x + 30;
+    for (let i = 0; i < BALANCE.startingMiners; i++) {
+      const jitter = (i - 1) * BALANCE.minerSpawnJitter;
+      const miner = new Miner({
+        scene: this,
+        owner: player,
+        x: baseX,
+        y: player.statue.y + jitter,
+        config: MINER_TYPE,
+      });
+      this.world.spawnMiner(miner);
+    }
+  }
+
+  handleBuy(player, item) {
+    if (item.kind === "miner") {
+      const baseX = player.side === SIDE.LEFT
+        ? player.statue.x - 30
+        : player.statue.x + 30;
+      const jitter = (Math.random() - 0.5) * BALANCE.minerSpawnJitter * 2;
+      const miner = new Miner({
+        scene: this,
+        owner: player,
+        x: baseX,
+        y: player.statue.y + jitter,
+        config: MINER_TYPE,
+      });
+      this.world.spawnMiner(miner);
+    } else {
+      this.spawnCombatUnit(player, player.activeLane, item);
+    }
+  }
+
+  spawnCombatUnit(player, laneIdx, type) {
+    const x = player.side === SIDE.LEFT ? STATUE_X.left + 50 : STATUE_X.right - 50;
+    const y = LANE_YS[laneIdx];
+    const unit = new Unit({ scene: this, owner: player, lane: laneIdx, x, y, type });
+    this.world.spawnUnit(unit);
   }
 
   bindInput() {
     this.input.on("pointerdown", (pointer) => {
       if (this.world.gameOver) return;
-      const inPlayArea = pointer.y >= PLAY_TOP && pointer.y <= PLAY_BOTTOM;
-      if (!inPlayArea) return;
+      if (pointer.y < PLAY_TOP || pointer.y > PLAY_BOTTOM) return;
 
-      const side = pointer.x < WORLD_W / 2 ? SIDE.LEFT : SIDE.RIGHT;
-      const player = this.world.players[side];
-      const laneIdx = this.nearestLaneIndex(pointer.y);
-      this.spawnFor(player, laneIdx);
+      const left = this.world.players[SIDE.LEFT];
+
+      if (pointer.x < WORLD_W / 2) {
+        const hit = this.pickEntityAt(left, pointer.x, pointer.y);
+        if (hit) {
+          left.setControlled(hit);
+        } else {
+          left.clearControlled();
+        }
+      } else {
+        this.spawnCombatUnit(
+          this.world.players[SIDE.RIGHT],
+          this.nearestLaneIndex(pointer.y),
+          UNIT_TYPES.brushSwordsman
+        );
+      }
     });
+  }
+
+  pickEntityAt(player, x, y) {
+    const candidates = [...player.miners, ...player.units];
+    for (const e of candidates) {
+      const dx = e.x - x;
+      const dy = e.y - y;
+      const r = e.radius + 4;
+      if (dx * dx + dy * dy <= r * r) return e;
+    }
+    return null;
   }
 
   nearestLaneIndex(y) {
@@ -132,19 +209,17 @@ export class BattleScene extends Phaser.Scene {
     return best;
   }
 
-  spawnFor(player, laneIdx) {
-    const type = UNIT_TYPES.brushSwordsman;
-    const x = player.side === SIDE.LEFT ? STATUE_X.left + 50 : STATUE_X.right - 50;
-    const y = LANE_YS[laneIdx];
-    const unit = new Unit({
-      scene: this,
-      owner: player,
-      lane: laneIdx,
-      x,
-      y,
-      type,
-    });
-    this.world.spawnUnit(unit);
+  drawControlIndicator(player) {
+    const g = this.controlIndicators[player.side];
+    g.clear();
+    if (!player.controlled || player.controlled.dead) return;
+    const e = player.controlled;
+    const t = this.time.now / 200;
+    const pulse = 4 + Math.sin(t) * 2;
+    g.lineStyle(2, PALETTE.gold, 1);
+    g.strokeCircle(e.x, e.y, e.radius + pulse);
+    g.lineStyle(1, PALETTE.gold, 0.5);
+    g.strokeCircle(e.x, e.y, e.radius + pulse + 4);
   }
 
   showGameOver(winner) {
@@ -169,5 +244,10 @@ export class BattleScene extends Phaser.Scene {
 
   update(_time, dt) {
     this.world.update(dt);
+    this.hud.update();
+    this.unitBar.update();
+    for (const player of Object.values(this.world.players)) {
+      this.drawControlIndicator(player);
+    }
   }
 }
