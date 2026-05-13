@@ -1,0 +1,23 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #1a1410;
+  color: #ece6d6;
+  font-family: "Georgia", "Times New Roman", serif;
+  overflow: hidden;
+  height: 100%;
+}
+
+#game {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#game canvas {
+  display: block;
+  image-rendering: pixelated;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+}
