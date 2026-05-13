@@ -1,0 +1,55 @@
+export const AI_PERSONALITIES = {
+  easy: {
+    label: "Easy",
+    decisionInterval: 2400,
+    targetMiners: 4,
+    startingInkBonus: 0,
+    unitWeights: {
+      brushSwordsman: 6,
+      quillArcher: 2,
+      foldedSentinel: 1,
+    },
+    powerProbability: 0.05,
+    defenseProbability: 0.25,
+    inkReserve: 0,
+    pushHpFrac: 0.2,
+    defendHpFrac: 0.3,
+  },
+  normal: {
+    label: "Normal",
+    decisionInterval: 1300,
+    targetMiners: 5,
+    startingInkBonus: 0,
+    unitWeights: {
+      brushSwordsman: 4,
+      quillArcher: 3,
+      foldedSentinel: 2,
+      inkMortar: 1,
+    },
+    powerProbability: 0.18,
+    defenseProbability: 0.55,
+    inkReserve: 0,
+    pushHpFrac: 0.3,
+    defendHpFrac: 0.35,
+  },
+  hard: {
+    label: "Hard",
+    decisionInterval: 800,
+    targetMiners: 7,
+    startingInkBonus: 60,
+    unitWeights: {
+      brushSwordsman: 3,
+      quillArcher: 3,
+      foldedSentinel: 3,
+      inkMortar: 2,
+      paperDragon: 1,
+    },
+    powerProbability: 0.28,
+    defenseProbability: 0.75,
+    inkReserve: 0,
+    pushHpFrac: 0.4,
+    defendHpFrac: 0.4,
+  },
+};
+
+export const DEFAULT_DIFFICULTY = "normal";

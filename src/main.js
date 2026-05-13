@@ -1,5 +1,7 @@
 import { BootScene } from "./scenes/BootScene.js";
+import { MenuScene } from "./scenes/MenuScene.js";
 import { BattleScene } from "./scenes/BattleScene.js";
+import { GameOverScene } from "./scenes/GameOverScene.js";
 import { WORLD_W, WORLD_H } from "./config/constants.js";
 
 const config = {
@@ -16,7 +18,7 @@ const config = {
     pixelArt: false,
     antialias: true,
   },
-  scene: [BootScene, BattleScene],
+  scene: [BootScene, MenuScene, BattleScene, GameOverScene],
 };
 
 new Phaser.Game(config);

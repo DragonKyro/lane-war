@@ -18,18 +18,31 @@ npx http-server -p 8000
 
 Then open <http://localhost:8000>. VS Code's "Live Server" extension also works (right-click `index.html` → *Open with Live Server*).
 
-## Current state — Phase 4: Defenses & Powers
+## Current state — Phase 6: Menu, Hotseat, Polish
 
-- **Two defense buildings**, one slot per lane per side:
-  - **Paper Bastion** (70 ink, 400 HP) — wall. Soaks damage; enemies stop to chip at it.
-  - **Ink Sentry** (120 ink, 180 HP, range 200) — auto-fires at the nearest enemy unit on its lane.
-- **Three powers** with cooldown + ink cost (top-right of the bottom bar):
-  - **Ink Storm** (80 ink, 12s CD) — targeted AoE damage in a 110-radius splat.
-  - **Folded Tiger** (100 ink, 22s CD) — instantly summons a Tiger (220 HP, fast, hard hitter) into your active lane.
-  - **Wet Page** (50 ink, 14s CD) — targeted slow field; enemies in the splash slow to 35% for 4 seconds.
-- **Targeting**: click a targeted-power button → the AoE preview follows your mouse → click on the play area to cast, or press **ESC** to cancel.
-- All Phase 1–3 mechanics still work: five-unit roster, unit-vs-unit combat, four per-lane stances + the all-lanes shortcuts, scribes / ink / control.
-- Right-side click still free-spawns a Vermillion swordsman in the nearest lane — placeholder for the Phase 5 AI.
+The game now opens to a **main menu** with four options:
+
+- **vs AI — Easy / Normal / Hard** — single-player against the EnemyAI from Phase 5.
+- **Hotseat — Two Players** — share a keyboard. Player 1 plays Black Ink with mouse + the normal UI. Player 2 plays Vermillion entirely from the keyboard.
+
+When a match ends, a **game-over screen** announces the winner and offers **Rematch** (same mode/difficulty) or **Main Menu**.
+
+### Controls
+
+| Action | Player 1 (mouse) | Player 2 (hotseat keyboard) |
+| --- | --- | --- |
+| Pick active lane | LaneSelector buttons | `Q` / `W` / `E` |
+| Set all-lanes stance | StancePanel "All lanes" row | `A` Attack / `S` Defend / `D` Retreat / `F` Rush |
+| Buy Scribe / Swordsman / Archer / Sentinel / Mortar / Dragon | UnitBar buttons | `1` / `2` / `3` / `4` / `5` / `6` |
+| Build Bastion / Sentry | UnitBar (right end) | `7` / `8` |
+| Cast Storm / Tiger / Wet Page | PowerBar (click → click field for targeted) | `9` / `0` / `-` (auto-targets densest enemy cluster) |
+| Control a unit (boost) | Click your unit | — (not yet available to P2) |
+
+In vs-AI mode, **1 / 2 / 3 restart the current match** on Easy / Normal / Hard.
+
+### Polish in this phase
+- **Controlled-unit boost** now applies to combat units too — 1.5× damage and speed while you have one selected (it always worked on scribes; this extends Stick War's signature feel to your army).
+- Statue HP raised to 1200 so matches breathe a little more.
 
 ## The roster
 
@@ -77,16 +90,16 @@ Phaser bootstrap, three lanes, two statues, click-to-spawn a single placeholder 
   - *Wet Page* — targeted slow field
 - Targeted powers show an AoE preview that tracks your mouse; press **ESC** to cancel.
 
-### Phase 5 — AI Opponent
-- **EnemyAI state machine** in `src/ai/EnemyAI.js`. Phases: `ECONOMY` (build miners) → `ARMY` (build units) → `PUSH` (commit + cast powers + change stance). Reacts to enemy army size, ink income, and statue-HP delta.
-- **Difficulty tiers** (Easy / Normal / Hard) via `aiPersonalities.js` — tune reaction speed, decision noise, and starting-ink handicap.
-- Right-side click-to-spawn is removed; the right player becomes the AI.
+### Phase 5 — AI Opponent ✅
+- **EnemyAI** in [src/ai/EnemyAI.js](src/ai/EnemyAI.js). Each tick (interval set by difficulty) the AI: adjusts stance from seal-HP differentials, then in priority order tries defense → power → miner → combat unit.
+- **Difficulty tiers** in [src/ai/aiPersonalities.js](src/ai/aiPersonalities.js) — Easy / Normal / Hard tune reaction speed, unit-roll weights, power & defense probabilities, and starting-ink handicap (Hard gets +60 ink).
+- Right-side click-to-spawn is removed; the right player is the AI. Press 1 / 2 / 3 to restart on Easy / Normal / Hard.
 
-### Phase 6 — Menu, Hotseat, Polish
-- **MenuScene**: New Game / vs AI (difficulty) / Hotseat / Settings.
-- **Hotseat mode**: two humans share input — one mouse, one keyboard hotkeys.
-- **GameOverScene** with rematch / return-to-menu.
-- **Balance pass** — central tuning in `src/config/balance.js`. Audio if time allows.
+### Phase 6 — Menu, Hotseat, Polish ✅
+- **MenuScene** at boot — vs AI (Easy / Normal / Hard) or Hotseat.
+- **Hotseat mode**: P1 mouse + UI, P2 keyboard hotkeys. Targeted powers auto-find the densest enemy cluster for P2.
+- **GameOverScene** with Rematch / Main Menu.
+- **Controlled-unit boost** extended to combat units (1.5× damage and speed). Statue HP bumped to 1200.
 
 ### Phase 7 — Deploy to GitHub Pages
 - Add `.nojekyll` at repo root, enable Pages in repo settings, verify the live URL works.
@@ -106,18 +119,18 @@ Out of scope for v1; deferred until single-player feels good. Likely WebRTC P2P 
 
 ```
 index.html, style.css, src/main.js
-src/scenes/      Phaser scenes (Boot, Battle; GameOver — future)
+src/scenes/      Boot, Menu, Battle, GameOver
 src/core/        Pure logic: World, Lane, Player
 src/entities/    Entity base, Building base, Unit, Statue, Miner
 src/units/       Unit + miner data tables
 src/buildings/   InkWell, PaperBastion, InkSentry + config
 src/commands/    StanceController + STANCE enum
 src/powers/      Power base + InkStorm, FoldedTiger, WetPage + config
+src/ai/          EnemyAI + aiPersonalities (Easy / Normal / Hard)
+src/input/       HotseatInput (P2 keyboard adapter)
 src/ui/          HUD, UnitBar, LaneSelector, StancePanel, PowerBar
 src/config/      Constants, balance numbers
 ```
-
-Future folders (per the design plan): `src/ai/`.
 
 ## Tech
 

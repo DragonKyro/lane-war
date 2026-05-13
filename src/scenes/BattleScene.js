@@ -29,6 +29,9 @@ import { POWER_TYPES } from "../powers/powers.config.js";
 import { InkStorm } from "../powers/InkStorm.js";
 import { FoldedTiger } from "../powers/FoldedTiger.js";
 import { WetPage } from "../powers/WetPage.js";
+import { EnemyAI } from "../ai/EnemyAI.js";
+import { AI_PERSONALITIES, DEFAULT_DIFFICULTY } from "../ai/aiPersonalities.js";
+import { HotseatInput } from "../input/HotseatInput.js";
 
 export class BattleScene extends Phaser.Scene {
   constructor() {
@@ -39,14 +42,22 @@ export class BattleScene extends Phaser.Scene {
     this.drawBackground();
     this.drawLanes();
 
+    this.mode = this.registry.get("mode") || "ai";
+    this.difficulty = this.registry.get("difficulty") || DEFAULT_DIFFICULTY;
+    const personality = AI_PERSONALITIES[this.difficulty];
+
     const left = new Player({ side: SIDE.LEFT, name: "Black Ink", color: PALETTE.ink });
     const right = new Player({ side: SIDE.RIGHT, name: "Vermillion", color: PALETTE.vermillion });
     left.ink = BALANCE.startingInk;
-    right.ink = BALANCE.startingInk;
+    right.ink = this.mode === "ai"
+      ? BALANCE.startingInk + (personality.startingInkBonus || 0)
+      : BALANCE.startingInk;
     left.powers = this.makePowers();
     right.powers = this.makePowers();
 
     this.world = new World(this, { left, right });
+    this.ai = this.mode === "ai" ? new EnemyAI(this, this.world, right, personality) : null;
+    this.hotseatInput = null;
 
     const midY = (PLAY_TOP + PLAY_BOTTOM) / 2;
     left.statue = new Statue({ scene: this, owner: left, x: STATUE_X.left, y: midY, hp: BALANCE.statueHp });
@@ -92,6 +103,10 @@ export class BattleScene extends Phaser.Scene {
 
     this.drawHintText();
     this.bindInput();
+
+    if (this.mode === "hotseat") {
+      this.hotseatInput = new HotseatInput(this, right);
+    }
 
     this.events.on("gameOver", (winner) => this.showGameOver(winner));
   }
@@ -149,8 +164,9 @@ export class BattleScene extends Phaser.Scene {
   }
 
   drawHintText() {
-    const hint =
-      "Click your scribes/units to control them. Power buttons (top-right of bar) trigger spells — click the field to drop targeted ones. Press ESC to cancel a power. Right play area free-spawns Vermillion for testing.";
+    const hint = this.mode === "hotseat"
+      ? "P1 (mouse): UI + click to control. P2 (keys): Q/W/E lane • A/S/D/F stance • 1-6 units, 7 Bastion, 8 Sentry • 9/0/- powers (auto-target)."
+      : "Click a scribe/unit to control it (gold ring = boosted). Targeted powers: click button, then click the field. ESC cancels. Press 1 / 2 / 3 to restart on Easy / Normal / Hard.";
     this.add
       .text(WORLD_W / 2, WORLD_H - 4, hint, {
         fontFamily: "Georgia, serif",
@@ -266,23 +282,26 @@ export class BattleScene extends Phaser.Scene {
       if (pointer.y < PLAY_TOP || pointer.y > PLAY_BOTTOM) return;
 
       const left = this.world.players[SIDE.LEFT];
-      if (pointer.x < WORLD_W / 2) {
-        const hit = this.pickEntityAt(left, pointer.x, pointer.y);
-        if (hit) {
-          left.setControlled(hit);
-        } else {
-          left.clearControlled();
-        }
+      const hit = this.pickEntityAt(left, pointer.x, pointer.y);
+      if (hit) {
+        left.setControlled(hit);
       } else {
-        this.spawnCombatUnit(
-          this.world.players[SIDE.RIGHT],
-          this.nearestLaneIndex(pointer.y),
-          UNIT_TYPES.brushSwordsman
-        );
+        left.clearControlled();
       }
     });
 
     this.input.keyboard.on("keydown-ESC", () => this.cancelTargeting());
+    if (this.mode === "ai") {
+      this.input.keyboard.on("keydown-ONE", () => this.restartWithDifficulty("easy"));
+      this.input.keyboard.on("keydown-TWO", () => this.restartWithDifficulty("normal"));
+      this.input.keyboard.on("keydown-THREE", () => this.restartWithDifficulty("hard"));
+    }
+    this.input.keyboard.on("keydown-BACKTICK", () => this.scene.start("MenuScene"));
+  }
+
+  restartWithDifficulty(difficulty) {
+    this.registry.set("difficulty", difficulty);
+    this.scene.restart();
   }
 
   pickEntityAt(player, x, y) {
@@ -335,26 +354,33 @@ export class BattleScene extends Phaser.Scene {
   }
 
   showGameOver(winner) {
-    this.add.rectangle(0, 0, WORLD_W, WORLD_H, 0x000000, 0.6).setOrigin(0, 0);
+    if (this.gameOverShown) return;
+    this.gameOverShown = true;
+    this.cancelTargeting();
+    this.add.rectangle(0, 0, WORLD_W, WORLD_H, 0x000000, 0.45).setOrigin(0, 0);
     this.add
-      .text(WORLD_W / 2, WORLD_H / 2, `${winner.name} wins!`, {
+      .text(WORLD_W / 2, WORLD_H / 2, `${winner.name} wins`, {
         fontFamily: "Georgia, serif",
-        fontSize: "64px",
+        fontSize: "60px",
         color: "#ece6d6",
         stroke: "#1a1410",
         strokeThickness: 6,
       })
       .setOrigin(0.5);
-    this.add
-      .text(WORLD_W / 2, WORLD_H / 2 + 60, "Refresh the page to play again", {
-        fontFamily: "Georgia, serif",
-        fontSize: "20px",
-        color: "#ece6d6",
-      })
-      .setOrigin(0.5);
+    const subtitle =
+      this.mode === "hotseat"
+        ? "Hotseat duel concluded."
+        : `vs AI (${this.difficulty}).`;
+    this.time.delayedCall(1300, () => {
+      this.scene.start("GameOverScene", {
+        winnerName: winner.name,
+        subtitle,
+      });
+    });
   }
 
   update(_time, dt) {
+    if (this.ai) this.ai.update();
     this.world.update(dt);
     this.hud.update();
     this.unitBar.update();

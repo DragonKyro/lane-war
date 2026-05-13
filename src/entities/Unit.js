@@ -20,8 +20,17 @@ export class Unit extends Entity {
     this.draw();
   }
 
+  get isControlled() {
+    return this.owner.controlled === this;
+  }
+
+  get controlMultiplier() {
+    return this.isControlled ? 1.5 : 1;
+  }
+
   get effectiveSpeed() {
-    return this.scene.time.now < this.slowEnd ? this.speed * this.slowMul : this.speed;
+    const slow = this.scene.time.now < this.slowEnd ? this.slowMul : 1;
+    return this.speed * slow * this.controlMultiplier;
   }
 
   get facing() {
@@ -142,6 +151,7 @@ export class Unit extends Entity {
     if (this.attackCooldown > 0) return;
     this.attackCooldown = this.attackInterval;
 
+    const dmg = this.damage * this.controlMultiplier;
     if (this.splashRadius) {
       const tx = target.x;
       const ty = target.y;
@@ -152,17 +162,17 @@ export class Unit extends Entity {
         const dx = u.x - tx;
         const dy = u.y - ty;
         if (dx * dx + dy * dy <= r2) {
-          u.takeDamage(this.damage);
+          u.takeDamage(dmg);
         }
       }
       const es = world.opponentOf(this.owner).statue;
       const sdx = es.x - tx;
       const sdy = es.y - ty;
       if (sdx * sdx + sdy * sdy <= r2) {
-        es.takeDamage(this.damage);
+        es.takeDamage(dmg);
       }
     } else {
-      target.takeDamage(this.damage);
+      target.takeDamage(dmg);
     }
 
     this.showAttackFx(target);

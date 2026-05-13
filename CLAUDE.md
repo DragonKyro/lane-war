@@ -46,32 +46,30 @@ Defined in [src/config/constants.js](src/config/constants.js):
 
 ```
 index.html, style.css, src/main.js
-src/scenes/      BootScene, BattleScene  (GameOverScene — future)
+src/scenes/      BootScene, MenuScene, BattleScene, GameOverScene
 src/core/        Pure logic: World, Lane (with buildings array), Player
-src/entities/    Entity base, Building base, Unit (slow-aware), Statue, Miner
+src/entities/    Entity base, Building base, Unit (slow + controlled-aware), Statue, Miner
 src/units/       units.config.js (includes foldedTiger summon), miners.config.js
 src/buildings/   InkWell, PaperBastion (wall), InkSentry (turret), buildings.config.js
 src/commands/    StanceController + STANCE enum + STANCE_ORDER + STANCE_LABEL
 src/powers/      Power base + InkStorm, FoldedTiger, WetPage + powers.config.js
 src/ui/          HUD, UnitBar (8-button), LaneSelector, StancePanel, PowerBar
-src/ai/          (future) EnemyAI
+src/ai/          EnemyAI + aiPersonalities (Easy / Normal / Hard)
+src/input/       HotseatInput (P2 keyboard adapter)
 src/config/      constants.js, balance.js
 ```
 
-Folders marked `(future)` are listed in the plan but not yet created.
-
 ## Current state
 
-Phase 4 ("Defenses & Powers") is done. On top of Phases 1–3:
-- **Defense buildings** in [src/buildings/](src/buildings/): `PaperBastion` (wall, no attack, big HP) and `InkSentry` (turret, range 200, single-target). Both extend `Building` (which extends `Entity`). Each player has `buildingSlots: [null, null, null]` — one slot per lane. `Player.hasBuildingSlot(laneIdx)` and `BattleScene.tryPlaceBuilding` are the placement entry points. Buildings sit at the dashed defense line position.
-- **Lane.buildings** array holds the per-lane defense buildings. `Unit.findEnemy` now iterates `lane.units.concat(lane.buildings)`. Splash damage in `Unit.attack` also hits buildings in radius.
-- **Powers** in [src/powers/](src/powers/): `Power` base + `InkStorm` (targeted AoE damage), `FoldedTiger` (instant summon of a `UNIT_TYPES.foldedTiger`), `WetPage` (targeted slow field). Config in [src/powers/powers.config.js](src/powers/powers.config.js). Each `Player.powers` is a list of fresh `Power` instances — cooldowns are per-player.
-- **Slow effect on Units**: `slowEnd` (timestamp) + `slowMul` on `Unit`. `Unit.effectiveSpeed` getter reads the current time vs `slowEnd` to apply the multiplier. `WetPage` only refreshes `slowEnd` if its new end is later — slows don't accidentally shorten each other.
-- **Targeting flow** in `BattleScene`: `pendingPower` is set when player clicks a power button that `needsTarget`. `drawTargetingCursor` renders a red AoE preview each frame at the mouse. `bindInput` checks `pendingPower` first: clicks inside the play area cast + cancel; clicks outside leave the pending power alone (so clicking another power button doesn't immediately cancel itself). ESC always cancels.
-- **HUD layout**: bottom panel now has UnitBar (8 buttons: scribe + 5 units + 2 buildings, btnW 70) → LaneSelector → StancePanel → PowerBar (3 buttons).
-- **Right player has powers too** but no UI for them yet — they sit waiting for the Phase 5 AI to use them.
-
-Still deferred: AI opponent (Phase 5), menu / hotseat / polish (Phase 6).
+Phase 6 ("Menu, Hotseat, Polish") is done. The game is feature-complete for v1. On top of Phases 1–5:
+- **Scene flow**: `BootScene` → `MenuScene` → `BattleScene` → `GameOverScene` → (rematch returns to BattleScene, menu button returns to MenuScene). All registered in [src/main.js](src/main.js).
+- **Mode is read from `scene.registry["mode"]`** (`"ai"` or `"hotseat"`). Difficulty (`"easy"` / `"normal"` / `"hard"`) is registry-stored too. `MenuScene.start` writes both before launching `BattleScene`. Defaults are `"ai"` + `"normal"` if registry is empty (e.g. direct BattleScene entry during dev).
+- **Hotseat input** lives in [src/input/HotseatInput.js](src/input/HotseatInput.js). Created in `BattleScene.create` only when `mode === "hotseat"`. P2 keys: `Q W E` (lane), `A S D F` (stance), `1`–`8` (buys, same order as the UnitBar), `9 0 -` (powers, auto-targeted via `findCluster` — same heuristic as `EnemyAI.findPowerTarget`).
+- **Difficulty hotkeys (`1 / 2 / 3` for restart)** only bind in `mode === "ai"` so they don't fight the hotseat buy keys.
+- **`BattleScene.showGameOver`** is gated by `gameOverShown` (idempotent) and transitions to `GameOverScene` after a 1.3 s `delayedCall` — gives a beat for the player to read who won before the scene swaps.
+- **Controlled-unit boost extended to combat units**: `Unit.isControlled` + `Unit.controlMultiplier` (1.5×) feed into `Unit.effectiveSpeed` and `Unit.attack` damage. Miners still use their own multipliers in [miners.config.js](src/units/miners.config.js). Both still gate on `player.controlled === this`.
+- **Statue HP bumped to 1200** in [balance.js](src/config/balance.js) for slightly longer matches. Other unit/building/power numbers unchanged.
+- **HUD subtitle** shows `"vs AI: <Difficulty>"` or `"Hotseat — 2 Players"` depending on mode.
 
 ## Gotchas
 
@@ -93,6 +91,12 @@ Still deferred: AI opponent (Phase 5), menu / hotseat / polish (Phase 6).
 - **Power targeting click-order trap:** when a power button is clicked, the scene-level `pointerdown` ALSO fires (Phaser doesn't auto-stop). `BattleScene.bindInput` handles this by only canceling `pendingPower` after a successful cast (i.e. when the click was inside the play area). A click on the power button is outside the play area and therefore leaves `pendingPower` intact, which is the correct behavior — the new pending power survives.
 - **Power cooldowns are ticked by `World.update`** via `player.powers[].update(dt)`. Don't tick them anywhere else.
 - **`Unit.effectiveSpeed`** reads `scene.time.now < slowEnd` to apply `slowMul`. Don't multiply `this.speed` directly when adding movement code.
+- **The AI uses the same actions as the human UI** (`handleBuy`, `tryPlaceBuilding`, `spawnCombatUnit`, `castPower`). When you add a new buyable / castable thing, expose it through one of those methods and the AI inherits it. Don't backdoor state changes — the AI deducts ink itself after success, matching the `UnitBar.tryBuy` pattern.
+- **Difficulty restart** uses `scene.registry` (not class fields) because the scene is recreated. Anything that should survive a difficulty restart goes in the registry; everything else resets cleanly.
+- **Phaser key event names** for digits are `keydown-ONE`/`TWO`/`THREE` etc., not `keydown-1`. Trips people up.
+- **Mode-gated keybindings**: digit keys mean two different things in `ai` vs `hotseat` mode (restart difficulty vs P2 buys). Always gate keyboard handlers on `this.mode` in BattleScene before binding to avoid conflicts.
+- **Scene transition cleanup**: when BattleScene transitions to GameOverScene, Phaser unbinds the scene's keyboard listeners automatically. Don't manually unbind — the `bindInput()` re-runs on `scene.restart()`.
+- **Registry persists across scene starts** but not across page reloads. Use it for inter-scene config (mode, difficulty). For anything player-tunable that should survive a refresh, you'd need `localStorage` — not implemented yet.
 
 ## Deployment
 

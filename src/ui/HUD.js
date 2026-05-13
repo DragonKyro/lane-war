@@ -1,4 +1,5 @@
 import { WORLD_W, PALETTE, SIDE } from "../config/constants.js";
+import { AI_PERSONALITIES } from "../ai/aiPersonalities.js";
 
 const FONT = "Georgia, serif";
 
@@ -11,11 +12,28 @@ export class HUD {
 
   draw() {
     this.scene.add.rectangle(0, 0, WORLD_W, 80, PALETTE.ink, 0.9).setOrigin(0, 0);
+
+    const mode = this.scene.mode || "ai";
+    let modeText;
+    if (mode === "hotseat") {
+      modeText = "Hotseat — 2 Players";
+    } else {
+      const diff = this.scene.difficulty || "normal";
+      const diffLabel = (AI_PERSONALITIES[diff] && AI_PERSONALITIES[diff].label) || diff;
+      modeText = `vs AI: ${diffLabel}`;
+    }
     this.scene.add
-      .text(WORLD_W / 2, 12, "Lane War — Ink & Origami (Phase 4)", {
+      .text(WORLD_W / 2, 8, "Lane War — Ink & Origami", {
         fontFamily: FONT,
         fontSize: "16px",
         color: "#c69c4a",
+      })
+      .setOrigin(0.5, 0);
+    this.scene.add
+      .text(WORLD_W / 2, 28, modeText, {
+        fontFamily: FONT,
+        fontSize: "12px",
+        color: "#9c8c6a",
       })
       .setOrigin(0.5, 0);
 
