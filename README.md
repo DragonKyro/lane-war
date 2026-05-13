@@ -18,18 +18,17 @@ npx http-server -p 8000
 
 Then open <http://localhost:8000>. VS Code's "Live Server" extension also works (right-click `index.html` → *Open with Live Server*).
 
-## Current state — Phase 3: Stances & Combat
+## Current state — Phase 4: Defenses & Powers
 
-- **Five unit types** form the army roster (see [The roster](#the-roster) below).
-- **Unit-vs-unit combat** on the same lane. Melee swing point-blank, ranged shoot a quick beam, splash explodes in a radius.
-- **Stances per lane** — set via the StancePanel:
-  - **Attack** — push forward, engage anything in range.
-  - **Defend** — fall back to the dashed defense line and only engage if attacked.
-  - **Retreat** — return to your seal and stop attacking.
-  - **Rush** — ignore all enemies and beeline for the opposing seal. The tower-push button.
-- **All-lanes shortcut buttons** apply one stance to all three lanes at once (the classic Stick War style command).
-- **Side tinting**: Black Ink units have ink-black outlines; Vermillion units have red outlines. The body color identifies the unit type.
-- Economy (scribes + ink + the click-to-control boost) from Phase 2 still works.
+- **Two defense buildings**, one slot per lane per side:
+  - **Paper Bastion** (70 ink, 400 HP) — wall. Soaks damage; enemies stop to chip at it.
+  - **Ink Sentry** (120 ink, 180 HP, range 200) — auto-fires at the nearest enemy unit on its lane.
+- **Three powers** with cooldown + ink cost (top-right of the bottom bar):
+  - **Ink Storm** (80 ink, 12s CD) — targeted AoE damage in a 110-radius splat.
+  - **Folded Tiger** (100 ink, 22s CD) — instantly summons a Tiger (220 HP, fast, hard hitter) into your active lane.
+  - **Wet Page** (50 ink, 14s CD) — targeted slow field; enemies in the splash slow to 35% for 4 seconds.
+- **Targeting**: click a targeted-power button → the AoE preview follows your mouse → click on the play area to cast, or press **ESC** to cancel.
+- All Phase 1–3 mechanics still work: five-unit roster, unit-vs-unit combat, four per-lane stances + the all-lanes shortcuts, scribes / ink / control.
 - Right-side click still free-spawns a Vermillion swordsman in the nearest lane — placeholder for the Phase 5 AI.
 
 ## The roster
@@ -70,14 +69,13 @@ Phaser bootstrap, three lanes, two statues, click-to-spawn a single placeholder 
   - `RUSH` — ignore enemies and beeline for the opposing statue (the tower-rush option)
 - **StancePanel UI**: per-lane row plus an All-lanes row for the Stick-War-style commands.
 
-### Phase 4 — Defenses & Powers
-- **SealStamp walls**: blocking buildings placed in a fixed slot in front of each lane on your side; slow enemy advance.
-- **InkTurret**: ranged static defender that auto-attacks enemies in range. Replaces Stick War's retreat-only archers — defense is now persistent infrastructure.
-- **Three powers** with cooldown + ink cost, cast from the HUD:
-  - *Ink Storm* — AoE damage in a chosen area
-  - *Folded Tiger* — summon a temporary strong unit on a chosen lane
-  - *Wet Page* — slow field that decays over a few seconds
-- Build slots are limited, so defense choices are a real tradeoff.
+### Phase 4 — Defenses & Powers ✅
+- **Paper Bastion** (wall) and **Ink Sentry** (turret) — built per lane via the rightmost two buttons in the unit bar. One slot per lane, so wall *or* sentry, not both.
+- **Three powers** cast from the bottom-right of the bar with ink cost + cooldown:
+  - *Ink Storm* — targeted AoE damage
+  - *Folded Tiger* — instant summon of a fast, hard-hitting Tiger into the active lane
+  - *Wet Page* — targeted slow field
+- Targeted powers show an AoE preview that tracks your mouse; press **ESC** to cancel.
 
 ### Phase 5 — AI Opponent
 - **EnemyAI state machine** in `src/ai/EnemyAI.js`. Phases: `ECONOMY` (build miners) → `ARMY` (build units) → `PUSH` (commit + cast powers + change stance). Reacts to enemy army size, ink income, and statue-HP delta.
@@ -112,13 +110,14 @@ src/scenes/      Phaser scenes (Boot, Battle; GameOver — future)
 src/core/        Pure logic: World, Lane, Player
 src/entities/    Entity base, Building base, Unit, Statue, Miner
 src/units/       Unit + miner data tables
-src/buildings/   InkWell (SealStamp, InkTurret — future)
+src/buildings/   InkWell, PaperBastion, InkSentry + config
 src/commands/    StanceController + STANCE enum
-src/ui/          HUD, UnitBar, LaneSelector, StancePanel
+src/powers/      Power base + InkStorm, FoldedTiger, WetPage + config
+src/ui/          HUD, UnitBar, LaneSelector, StancePanel, PowerBar
 src/config/      Constants, balance numbers
 ```
 
-Future folders (per the design plan): `src/powers/`, `src/economy/`, `src/ai/`.
+Future folders (per the design plan): `src/ai/`.
 
 ## Tech
 

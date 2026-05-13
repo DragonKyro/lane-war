@@ -70,6 +70,19 @@ export const UNIT_TYPES = {
     radius: 22,
     color: 0xe6c87a,
   },
+  foldedTiger: {
+    key: "foldedTiger",
+    displayName: "Folded Tiger",
+    shortName: "Tiger",
+    role: "summon",
+    hp: 220,
+    damage: 26,
+    attackInterval: 700,
+    range: 38,
+    speed: 90,
+    radius: 18,
+    color: 0xc69c4a,
+  },
 };
 
 export const UNIT_LIST = [

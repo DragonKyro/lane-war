@@ -15,7 +15,13 @@ export class Unit extends Entity {
     this.splashRadius = type.splashRadius || 0;
     this.radius = type.radius;
     this.attackCooldown = 0;
+    this.slowEnd = 0;
+    this.slowMul = 1;
     this.draw();
+  }
+
+  get effectiveSpeed() {
+    return this.scene.time.now < this.slowEnd ? this.speed * this.slowMul : this.speed;
   }
 
   get facing() {
@@ -74,7 +80,8 @@ export class Unit extends Entity {
     const lane = world.lanes[this.lane];
     let best = null;
     let bestDist = Infinity;
-    for (const u of lane.units) {
+    const candidates = lane.units.concat(lane.buildings);
+    for (const u of candidates) {
       if (u.owner === this.owner || u.dead) continue;
       const forward = (u.x - this.x) * this.facing;
       if (forward < -this.radius * 2) continue;
@@ -92,7 +99,7 @@ export class Unit extends Entity {
     this.attackCooldown -= dt;
 
     const stance = this.owner.stanceController.get(this.lane);
-    const ds = this.speed * (dt / 1000);
+    const ds = this.effectiveSpeed * (dt / 1000);
     const enemyStatue = world.opponentOf(this.owner).statue;
 
     if (stance === STANCE.RETREAT) {
@@ -139,18 +146,19 @@ export class Unit extends Entity {
       const tx = target.x;
       const ty = target.y;
       const lane = world.lanes[this.lane];
-      for (const u of lane.units) {
+      const r2 = this.splashRadius * this.splashRadius;
+      for (const u of lane.units.concat(lane.buildings)) {
         if (u.owner === this.owner || u.dead) continue;
         const dx = u.x - tx;
         const dy = u.y - ty;
-        if (dx * dx + dy * dy <= this.splashRadius * this.splashRadius) {
+        if (dx * dx + dy * dy <= r2) {
           u.takeDamage(this.damage);
         }
       }
       const es = world.opponentOf(this.owner).statue;
       const sdx = es.x - tx;
       const sdy = es.y - ty;
-      if (sdx * sdx + sdy * sdy <= this.splashRadius * this.splashRadius) {
+      if (sdx * sdx + sdy * sdy <= r2) {
         es.takeDamage(this.damage);
       }
     } else {

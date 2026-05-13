@@ -12,7 +12,7 @@ export class HUD {
   draw() {
     this.scene.add.rectangle(0, 0, WORLD_W, 80, PALETTE.ink, 0.9).setOrigin(0, 0);
     this.scene.add
-      .text(WORLD_W / 2, 12, "Lane War — Ink & Origami (Phase 3)", {
+      .text(WORLD_W / 2, 12, "Lane War — Ink & Origami (Phase 4)", {
         fontFamily: FONT,
         fontSize: "16px",
         color: "#c69c4a",

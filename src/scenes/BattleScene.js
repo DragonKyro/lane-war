@@ -4,10 +4,13 @@ import { Statue } from "../entities/Statue.js";
 import { Unit } from "../entities/Unit.js";
 import { Miner } from "../entities/Miner.js";
 import { InkWell } from "../buildings/InkWell.js";
+import { PaperBastion } from "../buildings/PaperBastion.js";
+import { InkSentry } from "../buildings/InkSentry.js";
 import { HUD } from "../ui/HUD.js";
 import { UnitBar } from "../ui/UnitBar.js";
 import { LaneSelector } from "../ui/LaneSelector.js";
 import { StancePanel } from "../ui/StancePanel.js";
+import { PowerBar } from "../ui/PowerBar.js";
 import {
   WORLD_W,
   WORLD_H,
@@ -21,6 +24,11 @@ import {
 import { BALANCE } from "../config/balance.js";
 import { UNIT_TYPES, UNIT_LIST } from "../units/units.config.js";
 import { MINER_TYPE } from "../units/miners.config.js";
+import { DEFENSE_BUILDING_LIST, BUILDING_TYPES } from "../buildings/buildings.config.js";
+import { POWER_TYPES } from "../powers/powers.config.js";
+import { InkStorm } from "../powers/InkStorm.js";
+import { FoldedTiger } from "../powers/FoldedTiger.js";
+import { WetPage } from "../powers/WetPage.js";
 
 export class BattleScene extends Phaser.Scene {
   constructor() {
@@ -35,6 +43,8 @@ export class BattleScene extends Phaser.Scene {
     const right = new Player({ side: SIDE.RIGHT, name: "Vermillion", color: PALETTE.vermillion });
     left.ink = BALANCE.startingInk;
     right.ink = BALANCE.startingInk;
+    left.powers = this.makePowers();
+    right.powers = this.makePowers();
 
     this.world = new World(this, { left, right });
 
@@ -46,34 +56,52 @@ export class BattleScene extends Phaser.Scene {
     right.inkWell = new InkWell({ scene: this, owner: right, x: STATUE_X.right + BALANCE.inkWellOffset, y: midY });
 
     this.drawDefenseLines();
-
     this.spawnStartingMiners(left);
     this.spawnStartingMiners(right);
 
     this.drawBottomPanel();
-
     this.hud = new HUD(this, this.world);
 
     const unitItems = [
       { ...MINER_TYPE, kind: "miner", role: "economy" },
       ...UNIT_LIST.map((u) => ({ ...u, kind: "unit" })),
+      ...DEFENSE_BUILDING_LIST.map((b) => ({ ...b, kind: "building" })),
     ];
-    this.unitBar = new UnitBar(this, left, 10, WORLD_H - 90, unitItems, (item) =>
-      this.handleBuy(left, item)
+    this.unitBar = new UnitBar(
+      this,
+      left,
+      10,
+      WORLD_H - 90,
+      unitItems,
+      (item) => this.handleBuy(left, item),
+      { btnW: 70, btnH: 76, gap: 4 }
     );
 
-    this.laneSelector = new LaneSelector(this, left, 500, WORLD_H - 85);
-    this.stancePanel = new StancePanel(this, left, 710, WORLD_H - 96);
+    this.laneSelector = new LaneSelector(this, left, 610, WORLD_H - 78);
+    this.stancePanel = new StancePanel(this, left, 820, WORLD_H - 96);
+    this.powerBar = new PowerBar(this, left, 1080, WORLD_H - 90, (power) =>
+      this.handlePowerPick(left, power)
+    );
 
     this.controlIndicators = {
       [SIDE.LEFT]: this.add.graphics(),
       [SIDE.RIGHT]: this.add.graphics(),
     };
+    this.targetingCursor = this.add.graphics();
+    this.pendingPower = null;
 
     this.drawHintText();
     this.bindInput();
 
     this.events.on("gameOver", (winner) => this.showGameOver(winner));
+  }
+
+  makePowers() {
+    return [
+      new InkStorm(POWER_TYPES.inkStorm),
+      new FoldedTiger(POWER_TYPES.foldedTiger),
+      new WetPage(POWER_TYPES.wetPage),
+    ];
   }
 
   drawBackground() {
@@ -92,7 +120,6 @@ export class BattleScene extends Phaser.Scene {
     const g = this.add.graphics();
     g.lineStyle(2, PALETTE.laneShade, 0.5);
     g.fillStyle(PALETTE.laneShade, 0.08);
-
     const laneHeight = (PLAY_BOTTOM - PLAY_TOP) / LANE_YS.length;
     for (let i = 0; i < LANE_YS.length; i++) {
       const yMid = LANE_YS[i];
@@ -123,7 +150,7 @@ export class BattleScene extends Phaser.Scene {
 
   drawHintText() {
     const hint =
-      "Click your scribes/units to control them. Click empty space to release. Right-side clicks free-spawn a Vermillion swordsman in the closest lane.";
+      "Click your scribes/units to control them. Power buttons (top-right of bar) trigger spells — click the field to drop targeted ones. Press ESC to cancel a power. Right play area free-spawns Vermillion for testing.";
     this.add
       .text(WORLD_W / 2, WORLD_H - 4, hint, {
         fontFamily: "Georgia, serif",
@@ -165,9 +192,16 @@ export class BattleScene extends Phaser.Scene {
         config: MINER_TYPE,
       });
       this.world.spawnMiner(miner);
-    } else {
-      this.spawnCombatUnit(player, player.activeLane, item);
+      return true;
     }
+    if (item.kind === "unit") {
+      this.spawnCombatUnit(player, player.activeLane, item);
+      return true;
+    }
+    if (item.kind === "building") {
+      return this.tryPlaceBuilding(player, player.activeLane, item);
+    }
+    return false;
   }
 
   spawnCombatUnit(player, laneIdx, type) {
@@ -177,13 +211,61 @@ export class BattleScene extends Phaser.Scene {
     this.world.spawnUnit(unit);
   }
 
+  tryPlaceBuilding(player, laneIdx, type) {
+    if (!player.hasBuildingSlot(laneIdx)) return false;
+    const x = player.side === SIDE.LEFT
+      ? STATUE_X.left + BALANCE.defenseLineOffset
+      : STATUE_X.right - BALANCE.defenseLineOffset;
+    const y = LANE_YS[laneIdx];
+    let building = null;
+    if (type.key === BUILDING_TYPES.paperBastion.key) {
+      building = new PaperBastion({ scene: this, owner: player, lane: laneIdx, x, y, config: type });
+    } else if (type.key === BUILDING_TYPES.inkSentry.key) {
+      building = new InkSentry({ scene: this, owner: player, lane: laneIdx, x, y, config: type });
+    }
+    if (!building) return false;
+    player.buildingSlots[laneIdx] = building;
+    this.world.addBuilding(building);
+    return true;
+  }
+
+  handlePowerPick(player, power) {
+    if (!power.canCast(player)) return;
+    if (power.needsTarget) {
+      this.pendingPower = power;
+      this.powerBar.highlight(power);
+    } else {
+      this.castPower(power, player, 0, 0);
+    }
+  }
+
+  castPower(power, player, x, y) {
+    power.cast(this, player, this.world, x, y);
+    player.ink -= power.cost;
+    power.cooldown = power.cooldownMax;
+  }
+
+  cancelTargeting() {
+    this.pendingPower = null;
+    this.targetingCursor.clear();
+    this.powerBar.clearHighlight();
+  }
+
   bindInput() {
     this.input.on("pointerdown", (pointer) => {
       if (this.world.gameOver) return;
+
+      if (this.pendingPower) {
+        if (pointer.y >= PLAY_TOP && pointer.y <= PLAY_BOTTOM) {
+          this.castPower(this.pendingPower, this.world.players[SIDE.LEFT], pointer.x, pointer.y);
+          this.cancelTargeting();
+        }
+        return;
+      }
+
       if (pointer.y < PLAY_TOP || pointer.y > PLAY_BOTTOM) return;
 
       const left = this.world.players[SIDE.LEFT];
-
       if (pointer.x < WORLD_W / 2) {
         const hit = this.pickEntityAt(left, pointer.x, pointer.y);
         if (hit) {
@@ -199,6 +281,8 @@ export class BattleScene extends Phaser.Scene {
         );
       }
     });
+
+    this.input.keyboard.on("keydown-ESC", () => this.cancelTargeting());
   }
 
   pickEntityAt(player, x, y) {
@@ -238,6 +322,18 @@ export class BattleScene extends Phaser.Scene {
     g.strokeCircle(e.x, e.y, e.radius + pulse + 4);
   }
 
+  drawTargetingCursor() {
+    this.targetingCursor.clear();
+    if (!this.pendingPower) return;
+    const p = this.input.activePointer;
+    if (p.y < PLAY_TOP || p.y > PLAY_BOTTOM) return;
+    const r = this.pendingPower.config.radius || 60;
+    this.targetingCursor.fillStyle(PALETTE.vermillion, 0.12);
+    this.targetingCursor.fillCircle(p.worldX, p.worldY, r);
+    this.targetingCursor.lineStyle(2, PALETTE.vermillion, 0.8);
+    this.targetingCursor.strokeCircle(p.worldX, p.worldY, r);
+  }
+
   showGameOver(winner) {
     this.add.rectangle(0, 0, WORLD_W, WORLD_H, 0x000000, 0.6).setOrigin(0, 0);
     this.add
@@ -263,6 +359,8 @@ export class BattleScene extends Phaser.Scene {
     this.hud.update();
     this.unitBar.update();
     this.stancePanel.update();
+    this.powerBar.update();
+    this.drawTargetingCursor();
     for (const player of Object.values(this.world.players)) {
       this.drawControlIndicator(player);
     }

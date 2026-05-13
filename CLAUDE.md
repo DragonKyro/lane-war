@@ -47,13 +47,13 @@ Defined in [src/config/constants.js](src/config/constants.js):
 ```
 index.html, style.css, src/main.js
 src/scenes/      BootScene, BattleScene  (GameOverScene — future)
-src/core/        Pure logic: World, Lane, Player
-src/entities/    Entity base, Building base, Unit, Statue, Miner
-src/units/       units.config.js, miners.config.js
-src/buildings/   InkWell, buildings.config.js  (SealStamp, InkTurret — future)
+src/core/        Pure logic: World, Lane (with buildings array), Player
+src/entities/    Entity base, Building base, Unit (slow-aware), Statue, Miner
+src/units/       units.config.js (includes foldedTiger summon), miners.config.js
+src/buildings/   InkWell, PaperBastion (wall), InkSentry (turret), buildings.config.js
 src/commands/    StanceController + STANCE enum + STANCE_ORDER + STANCE_LABEL
-src/ui/          HUD, UnitBar, LaneSelector, StancePanel
-src/powers/      (future) Power base + concrete powers
+src/powers/      Power base + InkStorm, FoldedTiger, WetPage + powers.config.js
+src/ui/          HUD, UnitBar (8-button), LaneSelector, StancePanel, PowerBar
 src/ai/          (future) EnemyAI
 src/config/      constants.js, balance.js
 ```
@@ -62,17 +62,16 @@ Folders marked `(future)` are listed in the plan but not yet created.
 
 ## Current state
 
-Phase 3 ("Stances & Combat") is done. On top of Phases 1 & 2:
-- **Five unit types** in [src/units/units.config.js](src/units/units.config.js): `brushSwordsman` (melee), `quillArcher` (range), `foldedSentinel` (tank), `inkMortar` (splash, `splashRadius` field), `paperDragon` (juggernaut). Each has a `role` and `shortName`. `UNIT_LIST` is the canonical order for the UnitBar.
-- **Unit-vs-unit combat** in `Unit.update`. `findEnemy` filters by same lane + roughly-in-front (`forward < -2*radius` guard) and picks nearest. Falls back to enemy statue when no unit target.
-- **Splash damage** in `Unit.attack`: when `splashRadius > 0`, the unit damages all enemies (and the statue) within `splashRadius` of the *target's* position. Attacker is never friendly-fired.
-- **Attack FX** in `Unit.showAttackFx`: ranged units (range > 60) draw a fading line via Graphics; melee units pop a gold flash circle; splash units add a tinted ring. All use `scene.tweens` with `onComplete: destroy`. Side-tinted via `outlineColor`.
-- **Stances** (`src/commands/StanceController.js`): per-lane `STANCE.ATTACK | DEFEND | RETREAT | RUSH`. Each `Player` owns a `StanceController`. The Unit's update branches on the stance read fresh each tick — no stance state on the unit itself.
-- **StancePanel** (`src/ui/StancePanel.js`): two rows — one for `activeLane` (live-bound to `LaneSelector`), one for "all lanes". Highlights the active stance in vermillion.
-- **Defense line** rendered as a dashed marker per lane at `STATUE_X.{side} ± BALANCE.defenseLineOffset`. `Unit.defenseLineX` is the canonical position for DEFEND stance and (Phase 4) for buildings.
-- **Side tinting** of units via `Unit.outlineColor` (ink for LEFT, vermillion for RIGHT) — body color stays type-defined.
+Phase 4 ("Defenses & Powers") is done. On top of Phases 1–3:
+- **Defense buildings** in [src/buildings/](src/buildings/): `PaperBastion` (wall, no attack, big HP) and `InkSentry` (turret, range 200, single-target). Both extend `Building` (which extends `Entity`). Each player has `buildingSlots: [null, null, null]` — one slot per lane. `Player.hasBuildingSlot(laneIdx)` and `BattleScene.tryPlaceBuilding` are the placement entry points. Buildings sit at the dashed defense line position.
+- **Lane.buildings** array holds the per-lane defense buildings. `Unit.findEnemy` now iterates `lane.units.concat(lane.buildings)`. Splash damage in `Unit.attack` also hits buildings in radius.
+- **Powers** in [src/powers/](src/powers/): `Power` base + `InkStorm` (targeted AoE damage), `FoldedTiger` (instant summon of a `UNIT_TYPES.foldedTiger`), `WetPage` (targeted slow field). Config in [src/powers/powers.config.js](src/powers/powers.config.js). Each `Player.powers` is a list of fresh `Power` instances — cooldowns are per-player.
+- **Slow effect on Units**: `slowEnd` (timestamp) + `slowMul` on `Unit`. `Unit.effectiveSpeed` getter reads the current time vs `slowEnd` to apply the multiplier. `WetPage` only refreshes `slowEnd` if its new end is later — slows don't accidentally shorten each other.
+- **Targeting flow** in `BattleScene`: `pendingPower` is set when player clicks a power button that `needsTarget`. `drawTargetingCursor` renders a red AoE preview each frame at the mouse. `bindInput` checks `pendingPower` first: clicks inside the play area cast + cancel; clicks outside leave the pending power alone (so clicking another power button doesn't immediately cancel itself). ESC always cancels.
+- **HUD layout**: bottom panel now has UnitBar (8 buttons: scribe + 5 units + 2 buildings, btnW 70) → LaneSelector → StancePanel → PowerBar (3 buttons).
+- **Right player has powers too** but no UI for them yet — they sit waiting for the Phase 5 AI to use them.
 
-Still deferred: defense buildings + powers (Phase 4), AI opponent (Phase 5), menu / hotseat / polish (Phase 6).
+Still deferred: AI opponent (Phase 5), menu / hotseat / polish (Phase 6).
 
 ## Gotchas
 
@@ -89,6 +88,11 @@ Still deferred: defense buildings + powers (Phase 4), AI opponent (Phase 5), men
 - **Splash damage:** `splashRadius` lives on the *unit type*, not the projectile (there is no projectile entity yet — Phase 3 uses instant hits + FX tweens). When the unit attacks, the AoE is centered on the *target's* position, not the attacker. Statue is included in the splash if within radius.
 - **Side-based outlines** are computed in a getter (`Unit.outlineColor`), not stored in the unit-type config — keeps data tables decoupled from team identity.
 - **`findEnemy` rejects enemies far behind** (`forward < -2*radius`). This stops melee units from backtracking when a Rush-stance enemy slipped past them — instead they keep marching to the enemy seal. If you ever want true two-direction engagement, remove that guard.
+- **Buildings vs combat:** `lane.buildings` is iterated alongside `lane.units` in `Unit.findEnemy` and splash. Buildings can be targeted, damaged, and destroyed exactly like units. The `InkSentry` has its own `findEnemy` (no buildings, simpler — turrets shoot mobile enemies only).
+- **Build slot lifecycle:** placing → `Player.buildingSlots[lane]` is set + `Lane.addBuilding` is called. On death, `World.update` cleans the slot back to null and the slot becomes available again. Player can rebuild in that lane.
+- **Power targeting click-order trap:** when a power button is clicked, the scene-level `pointerdown` ALSO fires (Phaser doesn't auto-stop). `BattleScene.bindInput` handles this by only canceling `pendingPower` after a successful cast (i.e. when the click was inside the play area). A click on the power button is outside the play area and therefore leaves `pendingPower` intact, which is the correct behavior — the new pending power survives.
+- **Power cooldowns are ticked by `World.update`** via `player.powers[].update(dt)`. Don't tick them anywhere else.
+- **`Unit.effectiveSpeed`** reads `scene.time.now < slowEnd` to apply `slowMul`. Don't multiply `this.speed` directly when adding movement code.
 
 ## Deployment
 

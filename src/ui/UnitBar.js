@@ -3,20 +3,20 @@ import { PALETTE } from "../config/constants.js";
 const FONT = "Georgia, serif";
 
 export class UnitBar {
-  constructor(scene, player, x, y, items, onSpawn) {
+  constructor(scene, player, x, y, items, onSpawn, opts = {}) {
     this.scene = scene;
     this.player = player;
     this.items = items;
     this.onSpawn = onSpawn;
+    this.btnW = opts.btnW || 76;
+    this.btnH = opts.btnH || 76;
+    this.gap = opts.gap || 4;
     this.buttons = [];
     this.draw(x, y);
   }
 
   draw(x, y) {
-    const btnW = 76;
-    const btnH = 76;
-    const gap = 4;
-
+    const { btnW, btnH, gap } = this;
     this.items.forEach((item, i) => {
       const bx = x + i * (btnW + gap);
       const bg = this.scene.add
@@ -34,11 +34,12 @@ export class UnitBar {
         .setOrigin(0.5, 0);
 
       const role = this.scene.add
-        .text(bx + btnW / 2, y + 28, item.role || (item.kind === "miner" ? "economy" : ""), {
-          fontFamily: FONT,
-          fontSize: "10px",
-          color: "#9c8c6a",
-        })
+        .text(
+          bx + btnW / 2,
+          y + 28,
+          item.role || (item.kind === "miner" ? "economy" : ""),
+          { fontFamily: FONT, fontSize: "10px", color: "#9c8c6a" }
+        )
         .setOrigin(0.5, 0);
 
       const cost = this.scene.add
@@ -50,23 +51,35 @@ export class UnitBar {
         .setOrigin(0.5, 0);
 
       bg.on("pointerdown", () => this.tryBuy(item));
-      bg.on("pointerover", () => bg.setFillStyle(PALETTE.gold, 0.9));
+      bg.on("pointerover", () => {
+        if (this.isAvailable(item)) bg.setFillStyle(PALETTE.gold, 0.9);
+      });
       bg.on("pointerout", () => bg.setFillStyle(PALETTE.parchment, 0.92));
 
       this.buttons.push({ item, bg, name, role, cost });
     });
   }
 
+  isAvailable(item) {
+    if (this.player.ink < item.cost) return false;
+    if (item.kind === "building" && !this.player.hasBuildingSlot(this.player.activeLane)) {
+      return false;
+    }
+    return true;
+  }
+
   tryBuy(item) {
-    if (this.player.ink < item.cost) return;
-    this.player.ink -= item.cost;
-    this.onSpawn(item);
+    if (!this.isAvailable(item)) return;
+    const success = this.onSpawn(item);
+    if (success) {
+      this.player.ink -= item.cost;
+    }
   }
 
   update() {
     for (const b of this.buttons) {
-      const affordable = this.player.ink >= b.item.cost;
-      b.bg.setAlpha(affordable ? 1 : 0.45);
+      const ok = this.isAvailable(b.item);
+      b.bg.setAlpha(ok ? 1 : 0.45);
     }
   }
 }

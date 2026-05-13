@@ -1,4 +1,5 @@
 import { StanceController } from "../commands/StanceController.js";
+import { LANE_COUNT } from "../config/constants.js";
 
 export class Player {
   constructor({ side, name, color }) {
@@ -13,6 +14,8 @@ export class Player {
     this.controlled = null;
     this.activeLane = 1;
     this.stanceController = new StanceController();
+    this.buildingSlots = new Array(LANE_COUNT).fill(null);
+    this.powers = [];
   }
 
   setControlled(entity) {
@@ -22,5 +25,9 @@ export class Player {
 
   clearControlled() {
     this.controlled = null;
+  }
+
+  hasBuildingSlot(laneIdx) {
+    return !this.buildingSlots[laneIdx];
   }
 }
